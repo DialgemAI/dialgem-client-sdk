@@ -6,7 +6,7 @@
 
 Microphone capture, streaming playback and live call events in the browser, with a small React hook. Your API key never reaches the page.
 
-[![npm](https://img.shields.io/npm/v/@dialgem/client?include_prereleases&color=CB3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/@dialgem/client)
+[![npm](https://img.shields.io/npm/v/@dialgem/client?color=CB3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/@dialgem/client)
 [![CI](https://img.shields.io/github/actions/workflow/status/DialgemAI/dialgem-client-sdk/ci.yml?branch=main&label=CI&logo=github)](https://github.com/DialgemAI/dialgem-client-sdk/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-typed-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)

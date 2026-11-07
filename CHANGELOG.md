@@ -1,8 +1,10 @@
 # Changelog
 
-## 0.1.0-beta.1 (unreleased)
+## 1.0.0
 
-The first release.
+The first stable release. The API is the one in `0.1.0-beta.1`, unchanged: nothing was added, removed or renamed. From here on, breaking changes only come in a new major version, and `npm install @dialgem/client` installs this release.
+
+### What it does
 
 - `DialgemCall`: microphone capture (AudioWorklet, converted to 16 kHz mono in the audio thread), streaming playback of the agent's voice, and typed events (`started`, `transcript`, `agent_speaking`, `interrupted`, `level`, `ended`, `error`). `start()`, `stop()` and `setMuted()`.
 - `@dialgem/client/react`: `useDialgemCall`, a hook that makes a new call (and fetches a new token) on every `start()` and hangs up on unmount.
