@@ -35,17 +35,48 @@ describe("the capture worklet", () => {
 
   it.each([48_000, 44_100, 32_000, 16_000])("turns %i Hz into 16 kHz: one second in is 16000 samples out", (rate) => {
     const { posted, feed } = processor(rate)
-    feed(new Float32Array(rate).fill(0.25))
+    // A little over a second: the filter holds back its last few samples (under a millisecond) until more arrive.
+    feed(new Float32Array(Math.round(rate * 1.05)).fill(0.25))
     const samples = all(posted).length + 0
     // Whole chunks only: the remainder waits for the next block.
-    expect(samples).toBe(Math.floor(16_000 / CAPTURE_CHUNK_SAMPLES) * CAPTURE_CHUNK_SAMPLES)
+    expect(samples).toBe(Math.floor(16_800 / CAPTURE_CHUNK_SAMPLES) * CAPTURE_CHUNK_SAMPLES)
     expect(posted.every((m) => pcm(m).length === CAPTURE_CHUNK_SAMPLES)).toBe(true)
   })
 
-  it("keeps the level: a steady signal stays steady through the averaging", () => {
-    const { posted, feed } = processor(44_100)
-    feed(new Float32Array(44_100).fill(0.5))
-    for (const s of all(posted)) expect(Math.abs(s - 16383)).toBeLessThanOrEqual(1)
+  it.each([48_000, 44_100, 32_000])("keeps the level at %i Hz: a steady signal stays steady through the filter", (rate) => {
+    const { posted, feed } = processor(rate)
+    feed(new Float32Array(rate).fill(0.5))
+    // The first samples are the filter filling with silence; after that the level is exact.
+    for (const s of all(posted).slice(60)) expect(Math.abs(s - 16383)).toBeLessThanOrEqual(2)
+  })
+
+  describe("frequency response", () => {
+    /** RMS of what comes out for a pure tone, relative to the tone's own RMS, after the filter has filled. */
+    function gain(rate: number, hz: number): number {
+      const { posted, feed } = processor(rate)
+      const n = rate
+      const tone = new Float32Array(n)
+      for (let i = 0; i < n; i++) tone[i] = 0.5 * Math.sin((2 * Math.PI * hz * i) / rate)
+      feed(tone)
+      const out = all(posted).slice(200)
+      const rms = Math.sqrt(out.reduce((sum, v) => sum + (v / 32768) ** 2, 0) / out.length)
+      return rms / (0.5 / Math.SQRT2)
+    }
+
+    it.each([48_000, 44_100])("passes speech at %i Hz: 1 to 6 kHz within a quarter of a dB", (rate) => {
+      for (const hz of [1000, 3000, 4000, 6000]) {
+        const db = 20 * Math.log10(gain(rate, hz))
+        expect(Math.abs(db), `${hz} Hz`).toBeLessThan(0.25)
+      }
+    })
+
+    it.each([48_000, 44_100])("removes what would alias into speech at %i Hz: 10 and 12 kHz at least 30 dB down", (rate) => {
+      // A plain average of the input samples leaves 12 kHz at about -9.5 dB, folded down to 4 kHz.
+      for (const hz of [10_000, 12_000]) {
+        const db = 20 * Math.log10(gain(rate, hz))
+        expect(db, `${hz} Hz`).toBeLessThan(-30)
+      }
+    })
   })
 
   it("keeps the sign and clamps what is out of range", () => {

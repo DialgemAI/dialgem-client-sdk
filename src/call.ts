@@ -142,6 +142,8 @@ export class DialgemCall extends Emitter<CallEvents> {
   private readonly platform: Platform
 
   private ctx: AudioContext | null = null
+  /** Plays the agent. A 16 kHz context of its own, so the voice is not resampled chunk by chunk; see `start()`. */
+  private playCtx: AudioContext | null = null
   private stream: MediaStream | null = null
   private ws: WebSocket | null = null
   private player: PcmPlayer | null = null
@@ -196,7 +198,17 @@ export class DialgemCall extends Emitter<CallEvents> {
     } catch {
       throw this.fail({ code: "unsupported", message: "This browser could not start audio." })
     }
-    this.player = new PcmPlayer(this.ctx)
+    // The agent's voice arrives as many small 16 kHz buffers. On a 48 kHz context the browser resamples each
+    // one on its own, and the joins between them can click. A context at the voice's own rate plays them as
+    // they are and leaves one resample, of the whole stream, to the audio device. Capture stays on the default
+    // context: Firefox refuses to connect a microphone to a context at another rate.
+    try {
+      this.playCtx = new p.AudioContext({ sampleRate: SAMPLE_RATE })
+      void this.playCtx.resume()
+    } catch {
+      this.playCtx = this.ctx
+    }
+    this.player = new PcmPlayer(this.playCtx)
 
     const mic = this.options.microphone ?? {}
     try {
@@ -464,6 +476,8 @@ export class DialgemCall extends Emitter<CallEvents> {
     }
     if (this.moduleUrl) this.platform.revokeObjectURL?.(this.moduleUrl)
     void this.ctx?.close().catch(() => undefined)
+    if (this.playCtx && this.playCtx !== this.ctx) void this.playCtx.close().catch(() => undefined)
+    this.playCtx = null
     this.node = this.source = this.sink = this.stream = this.ctx = this.player = null
     this.moduleUrl = null
   }

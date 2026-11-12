@@ -1,6 +1,6 @@
 {
   "name": "@dialgem/client",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Talk to a Dialgem voice agent from a web page: microphone capture, streaming playback and call events, with a small React hook.",
   "keywords": [
     "dialgem",

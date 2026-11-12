@@ -42,17 +42,46 @@ describe("starting a call", () => {
   it("opens audio in the click, then the microphone, then fetches the token, then connects, in that order", async () => {
     const a = setup()
     await connected(a)
-    expect(a.h.log).toEqual(["ctx", "mic", "token", "ws"])
+    expect(a.h.log).toEqual(["ctx", "play-ctx", "mic", "token", "ws"])
     expect(a.h.contexts[0]!.resumed).toBe(true)
+    expect(a.h.contexts[1]!.resumed).toBe(true)
   })
 
   it("creates and resumes the audio context synchronously inside start(), before anything is awaited", () => {
     const a = setup()
     void a.call.start().catch(() => undefined)
     // No await has happened yet: this is the moment the browser still counts as the visitor's click.
-    expect(a.h.contexts).toHaveLength(1)
+    expect(a.h.contexts).toHaveLength(2)
     expect(a.h.contexts[0]!.resumed).toBe(true)
-    expect(a.h.log[0]).toBe("ctx")
+    expect(a.h.contexts[1]!.resumed).toBe(true)
+    expect(a.h.log.slice(0, 2)).toEqual(["ctx", "play-ctx"])
+  })
+
+  it("captures on the default context and plays the agent on a 16 kHz one, so the voice is not resampled per chunk", async () => {
+    const a = setup()
+    const ws = await connected(a)
+    const [capture, playback] = a.h.contexts
+    expect(capture!.sampleRate).toBeNull()
+    expect(playback!.sampleRate).toBe(16_000)
+    expect(capture!.mediaSources).toHaveLength(1)
+    ws.audio(32 * 100)
+    expect(playback!.sources).toHaveLength(1)
+    expect(capture!.sources).toHaveLength(0)
+  })
+
+  it("plays on the default context when the browser cannot make a 16 kHz one", async () => {
+    const a = setup({ noPlaybackRate: true })
+    const ws = await connected(a)
+    expect(a.h.contexts).toHaveLength(1)
+    ws.audio(32 * 100)
+    expect(a.h.contexts[0]!.sources).toHaveLength(1)
+  })
+
+  it("closes both audio contexts when the call ends", async () => {
+    const a = setup()
+    await connected(a)
+    a.call.stop()
+    expect(a.h.contexts.map((c) => c.closed)).toEqual([true, true])
   })
 
   it("loads the capture processor from a blob it revokes afterwards", async () => {
@@ -309,7 +338,7 @@ describe("during the call", () => {
   it("plays the agent's audio, says when it is speaking, and says when it has finished", async () => {
     const a = setup()
     const ws = await connected(a)
-    const ctx = a.h.contexts[0]!
+    const ctx = a.h.contexts[1]!
     ws.audio(32 * 500)                                      // 500 ms of speech
     expect(ctx.sources).toHaveLength(1)
     expect(a.seen.agent_speaking).toEqual([{ speaking: true }])
@@ -324,7 +353,8 @@ describe("during the call", () => {
     const ws = await connected(a)
     ws.audio(32 * 1000)
     ws.text({ type: "agent_interrupted" })
-    expect(a.h.contexts[0]!.sources.every((s) => s.stopped)).toBe(true)
+    expect(a.h.contexts[1]!.sources.length).toBeGreaterThan(0)
+    expect(a.h.contexts[1]!.sources.every((s) => s.stopped)).toBe(true)
     expect(a.seen.interrupted).toHaveLength(1)
     expect(a.seen.agent_speaking).toEqual([{ speaking: true }, { speaking: false }])
   })
@@ -337,7 +367,7 @@ describe("during the call", () => {
     ws.open()
     await started
     ws.audio(640)
-    expect(a.h.contexts[0]!.sources).toHaveLength(0)
+    expect(a.h.contexts.flatMap((c) => c.sources)).toHaveLength(0)
   })
 
   it("ignores malformed and unknown frames", async () => {

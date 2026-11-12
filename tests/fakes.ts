@@ -62,6 +62,8 @@ class FakeSource {
 
 export class FakeContext {
   currentTime = 0
+  /** The rate the context was asked for; null for the browser default. */
+  sampleRate: number | null = null
   destination = {}
   resumed = false
   closed = false
@@ -124,7 +126,7 @@ export class FakeTrack {
 }
 
 /** Everything the call created, and the order it did things in. */
-export function fakePlatform(opts: { micError?: { name: string } | null; token?: () => Promise<string> | string; moduleError?: boolean } = {}) {
+export function fakePlatform(opts: { micError?: { name: string } | null; noPlaybackRate?: boolean; token?: () => Promise<string> | string; moduleError?: boolean } = {}) {
   const log: string[] = []
   const sockets: FakeSocket[] = []
   const contexts: FakeContext[] = []
@@ -142,9 +144,11 @@ export function fakePlatform(opts: { micError?: { name: string } | null; token?:
       }
     } as unknown as Platform["WebSocket"],
     AudioContext: class extends FakeContext {
-      constructor() {
+      constructor(options?: { sampleRate?: number }) {
         super()
-        log.push(gesture ? "ctx" : "ctx-late")
+        if (options?.sampleRate && opts.noPlaybackRate) throw new Error("NotSupportedError")
+        this.sampleRate = options?.sampleRate ?? null
+        log.push(options?.sampleRate ? "play-ctx" : gesture ? "ctx" : "ctx-late")
         contexts.push(this)
         if (opts.moduleError) this.audioWorklet.addModule = () => Promise.reject(new Error("csp"))
       }
